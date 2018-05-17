@@ -15,13 +15,13 @@ file_paths = {
     'bj_aq': './data/Beijing/aq/beijing_17_18_aq.csv',
     'bj_aq_201802_201803': './data/Beijing/aq/beijing_201802_201803_aq.csv', 
     'bj_aq_new': './data/Beijing/aq/bj_aq_new.csv',
-    'bj_meter_grid_hist': r'./Data/Beijing/Beijing_historical_meo_grid.csv',
-    'bj_meter_grid_new': r'./Data/Beijing/bj_grid_meo_new.csv',
-    'ld_aq': r'./Data/London/London_historical_aqi_forecast_stations_20180331.csv',
-    'ld_aq_new': r'./Data/London/ld_aq_new.csv',
-    'ld_aq_other': r'./Data/London/London_historical_aqi_other_stations_20180331.csv',
-    'ld_meter_grid_hist': r'./Data/London/London_historical_meo_grid.csv',
-    'ld_meter_grid_new': r'./Data/London/ld_meo_new.csv'
+    'bj_meter_grid_hist': './data/Beijing/meo/Beijing_historical_meo_grid.csv',
+    'bj_meter_grid_new': './data/Beijing/meo/bj_grid_meo_new.csv',
+    'ld_aq': r'./data/London/aq/London_historical_aqi_forecast_stations_20180331.csv',
+    'ld_aq_new': r'./data/London/aq/ld_aq_new.csv',
+    'ld_aq_other': r'./data/London/aq/London_historical_aqi_other_stations_20180331.csv',
+    'ld_meter_grid_hist': r'./data/meo/London/London_historical_meo_grid.csv',
+    'ld_meter_grid_new': r'./data/meo/London/ld_meo_new.csv'
 }
 
 #================================================================
@@ -39,7 +39,13 @@ def load_city_aq(city):
         bj_aq = pd.read_csv(file_paths['bj_aq'])
         bj_aq_201802_201803 = pd.read_csv(file_paths['bj_aq_201802_201803'])
         bj_aq_new = pd.read_csv(file_paths['bj_aq_new'])
-    return bj_aq, bj_aq_201802_201803, bj_aq_new
+        return bj_aq, bj_aq_201802_201803, bj_aq_new
+    else:
+        ld_aq = pd.read_csv(file_paths['ld_aq'])
+        ld_aq_other = pd.read_csv(file_paths['ld_aq_other'], dtype={'Station_ID': str, 'MeasurementDateGMT': str})
+        ld_aq_new = pd.read_csv(file_paths['ld_aq_new'])
+        return ld_aq, ld_aq_other, ld_aq_new
+
     #     bj_aq_new = pd.read_csv(file_paths['bj_aq_new'])
     #     df_temp = pd.concat([bj_aq, bj_aq_201802_201803, bj_aq_new], ignore_index=True)
     #     df_temp.sort_index(inplace=True)
@@ -105,14 +111,14 @@ def get_stations(city, grid=False, which='predict'):
             stations = pd.read_csv(r'./data/London/London_grid_weather_station.csv')
         else:
             stations = pd.read_csv(r'./data/London/London_AirQuality_Stations.csv')
-            # reformat
-            stations.drop(['SiteType', 'SiteName'], axis=1, inplace=True)
             if which == 'predict':
-                stations = stations.loc[stations['need_prediction'] == True, :][['stationId', 'longitude', 'latitude']]
+                stations = stations.loc[stations['need_prediction'], :][['Unnamed: 0', 'Longitude', 'Latitude']]
             elif which == 'need':
-                stations = stations.loc[stations['need_prediction'].isnull(), :][['stationId', 'longitude', 'latitude']]
+                stations = stations.loc[stations['need_prediction'].isnull(), :][['Unnamed: 0', 'Longitude', 'Latitude']]
             else:
-                stations = stations[['stationId', 'longitude', 'latitude']]
+                stations = stations[['Unnamed: 0', 'Longitude', 'Latitude']]
+            # rename
+            stations.rename(columns={'Unnamed: 0': 'stationId', 'Longitude': 'longitude', 'Latitude': 'latitude'}, inplace=True)
     return stations.reset_index(drop=True)
 
 
@@ -164,6 +170,7 @@ def load_city_meter_grid(city):
 
     return grid_meteros_stations
 
+
 def load_city_meter(city):
     grid_meteros_stations = load_city_meter_grid(city)
     stations = get_stations(city, grid=False, which='all')
@@ -199,9 +206,6 @@ def find_nearest_single(station, all_stations):
         grids_list.append(series['stationId'])
         dist_list.append(dist)
 
-    # return grids_list[np.argsort(dist_list)[0]]
-    print(np.argsort(dist_list))
-    # return grids_list[np.argsort(dist_list)]
     return [grids_list[i] for i in np.argsort(dist_list)]
 
 

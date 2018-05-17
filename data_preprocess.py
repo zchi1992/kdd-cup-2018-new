@@ -3,98 +3,90 @@ import numpy as np
 from datetime import datetime
 import pandas as pd
 from utils.STMVL import STMVL
+import os
+
+post_paths = {
+    'bj_post': './data/Beijing/post/',
+    'ld_post': './data/London/post'
+}
 
 
-def aq_city_preprocess(city):
+def preprocess_main(city):
+    if city == 'bj':
+        aq_city_preprocess(city, bj_particles)
+    else:
+        aq_city_preprocess(city, ld_particles)
+
+    # meter_preprocess(city)
+
+    # validate results
+    print('Validate results:\n')
+    _validate_results(city)
+
+
+def aq_city_preprocess(city, particles):
     print('start processing {} air quality'.format(city))
     stations = get_stations(city, grid=False, which='all')
-    aq, aq_historical, aq_new = load_city_aq(city)
 
-    # process aq_new data
-    aq_new.drop('id', axis=1, inplace=True)
-    aq_new.rename(columns={'station_id': 'stationId', 'time': 'utc_time', 'PM25_Concentration': 'PM2.5', 'PM10_Concentration': 'PM10', 'NO2_Concentration': 'NO2', 'CO_Concentration': 'CO', 'O3_Concentration': 'O3', 'SO2_Concentration': 'SO2'}, 
-                            inplace=True)
-
-    # merge
-    df_temp = pd.concat([aq, aq_historical, aq_new], ignore_index=True)
-    df_temp.sort_index(inplace=True)
-
-    # preprocess for every particle
     if city == 'bj':
-        for particle in bj_particles:
-            data = df_temp.pivot_table(index='utc_time', 
-                               columns='stationId', 
-                               values=particle)
-            # rename columns
-            data.columns = [name+'_{}'.format(particle) for name in data.columns.tolist()]
-            # filling missing data
-            data_filled_hour = fill_missing_time_with_na(data)
-            missing_len = data_filled_hour.loc[data_filled_hour.isnull().any(axis=1), :].shape[0]
-            print('There are {} missing in the data'.format(missing_len))
+        df_temp = bj_aq_merge()
+    else:
+        df_temp = ld_aq_merge()
 
-            # fill missing values
-            data_filled_na = fill_missing_single_data(data_filled_hour, stations)
-            missing_still_len = data_filled_na.loc[data_filled_na.isnull().any(axis=1), :].shape[0]
-            print('There are {} still missing in the data \n'.format(missing_still_len))
-            data_filled_na.to_csv(r'./data/Beijing/post/{}_{}_filled.csv'.format(city, particle))
-    # deal with missing left
-    #     # don't do anything
-    #     # use forward fill to
+    # fill particles_aq with all stations
+    for particle in particles:
+        data = df_temp.pivot_table(index='utc_time',
+                                   columns='stationId',
+                                   values=particle)
+        # rename columns
+        data.columns = [name + '_{}'.format(particle) for name in data.columns.tolist()]
 
-    #     # finish filling missing data
+        # special process for london air quality
+        if city == 'ld':
+            # find missing stations
+            stations_all = stations['stationId'].tolist()
+            stations_exist = [name.rsplit('_', maxsplit=1)[0] for name in data.columns.tolist()]
+            stations_missing = list(np.setdiff1d(stations_all, stations_exist))
 
-    # # de-duplication
-    # # already handled by pivot table
-    # # london air quality data needs to be filled with all staions first
-    # if city == 'ld':
-    #     # fill particles_aq with all stations
-    #     for particle, data in particles_aq.items():
-    #         # find missing stations
-    #         stations_all = stations['stationId'].tolist()
-    #         stations_exist = [name.rsplit('_', maxsplit=1)[0] for name in data.columns.tolist()]
-    #         stations_missing = list(np.setdiff1d(stations_all, stations_exist))
+            # find nearest stations
+            nearest_stations = find_nearest(stations, stations)
 
-    #         # find nearest stations
-    #         nearest_stations = find_nearest(stations, stations)
+            if len(stations_missing) != 0:
+                # find the nearest station to fill the air quality data
+                missing_df = pd.DataFrame(index=data.index, columns=stations_missing)
+                for station in stations_missing:
+                    col = nearest_stations[station][0] + '_{}'.format(particle) # the nearest of 'BX9' is 'BX1'
+                    missing_df[station] = data[col]
+                missing_df.columns = [col + '_{}'.format(particle) for col in missing_df.columns.tolist()]
 
-    #         if len(stations_missing) == 0:
-    #             continue
+                data = pd.concat([data, missing_df], axis=1)
+                data.sort_index(axis=1, inplace=True)
 
-    #         # find the nearest station to fill the air quality data
-    #         missing_df = pd.DataFrame(index=data.index, columns=stations_missing)
-    #         for station in stations_missing:
-    #             col = nearest_stations[station] + '_{}'.format(particle)
-    #             missing_df[station] = data[col]
-    #         data = pd.concat([data, missing_df], axis=1)
-    #         data.sort_index(axis=1, inplace=True)
-    #         particles_aq[particle] = data
+        # filling missing data
+        print('Filling missing data for {}\n'.format(particle))
 
-    # # missing dates
-    # for particle, data in particles_aq.items():
-    #     print('Fill missing data for {}'.format(particle))
+        data_filled_hour = fill_missing_time_with_na(data)
+        missing_len = data_filled_hour.loc[data_filled_hour.isnull().any(axis=1), :].shape[0]
+        print('There are {} missing in the data\n'.format(missing_len))
 
-    #     # fill missing dates
-    #     data_filled_time = fill_missing_time_with_na(data)
-    #     missing_len = data_filled_time.loc[data_filled_time.isnull().any(axis=1), :].shape[0]
-    #     print('There are {} missing in the data'.format(missing_len))
+        # fill missing values
+        data_filled_na = fill_missing_single_data(data_filled_hour, stations)
+        missing_still_len = data_filled_na.loc[data_filled_na.isnull().any(axis=1), :].shape[0]
+        print('There are {} still missing in the data \n'.format(missing_still_len))
 
-    #     # fill missing values
-    #     data_filled_na = fill_missing_single_data(data_filled_time, stations)
-    #     missing_still_len = data_filled_na.loc[data_filled_na.isnull().any(axis=1), :].shape[0]
-    #     print('There are {} still missing in the data \n'.format(missing_still_len))
-    #     # deal with missing left
-    #     # don't do anything
-    #     # use forward fill to 
+        # for rest of missing data, we use forward fill
+        data_filled_na.fillna(method='ffill', inplace=True)
 
-    #     particles_aq[particle] = data_filled_na
-    #     if city == 'bj':
-    #         data_filled_na.to_csv(r'./Data/Beijing/{}_{}_filled.csv'.format(city, particle), index=True)
-    #     else:
-    #         data_filled_na.to_csv(r'./Data/London/{}_{}_filled.csv'.format(city, particle), index=True)
-    
-    # return particles_aq
+        # for negative values, we replace them with 0
+        data_filled_na[data_filled_na < 0] = 0
 
-    
+        # write out to disk
+        if city == 'bj':
+            data_filled_na.to_csv(post_paths['bj_post'] + '{}_{}_filled.csv'.format(city, particle))
+        else:
+            data_filled_na.to_csv(post_paths['ld_post'] + '{}_{}_filled.csv'.format(city, particle))
+
+##########################################################################
 def meter_preprocess(city):
     print('start working on {} meterology '.format(city))
     metero_stations = load_city_meter(city)
@@ -130,6 +122,93 @@ def meter_preprocess(city):
             data_filled_na.to_csv(r'./Data/London/{}_{}_filled.csv'.format(city, metero), index=True)
     return metero_stations
 
+# ==============================================================
+# Private functions
+# ==============================================================
+
+
+def bj_aq_merge():
+    aq, aq_historical, aq_new = load_city_aq('bj')
+
+    # process aq_new data
+    aq_new.drop('id', axis=1, inplace=True)
+    aq_new.rename(columns={'station_id': 'stationId', 'time': 'utc_time', 'PM25_Concentration': 'PM2.5',
+                           'PM10_Concentration': 'PM10', 'NO2_Concentration': 'NO2', 'CO_Concentration': 'CO',
+                           'O3_Concentration': 'O3', 'SO2_Concentration': 'SO2'},
+                  inplace=True)
+
+    # merge
+    df_temp = pd.concat([aq, aq_historical, aq_new], ignore_index=True)
+    df_temp.sort_index(inplace=True)
+    return df_temp
+
+
+def ld_aq_merge():
+    aq, aq_other, aq_new = load_city_aq('ld')
+
+    # drop, rename ld_aq data to have same format as beijing data
+    aq.drop('Unnamed: 0', axis=1, inplace=True)
+    aq.rename(columns={'station_id': 'stationId', 'MeasurementDateGMT': 'utc_time', 'PM2.5 (ug/m3)': 'PM2.5',
+                       'PM10 (ug/m3)': 'PM10', 'NO2 (ug/m3)': 'NO2'}, inplace=True)
+
+    # reformat time
+    times = aq['utc_time'].apply(lambda x: datetime.strptime(x, '%Y/%m/%d %H:%M'))
+    times = times.apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    aq.loc[:, 'utc_time'] = times
+
+    # other data
+    aq_other.drop(['Unnamed: 5', 'Unnamed: 6'], axis=1, inplace=True)
+    aq_other.rename(
+        columns={'Station_ID': 'stationId', 'MeasurementDateGMT': 'utc_time', 'PM2.5 (ug/m3)': 'PM2.5',
+                 'PM10 (ug/m3)': 'PM10', 'NO2 (ug/m3)': 'NO2'}, inplace=True) \
+
+    # remove stations of NA
+    aq_other = aq_other.loc[aq_other['stationId'].notnull(), :]
+
+    times = aq_other['utc_time'].apply(lambda x: datetime.strptime(x, '%Y/%m/%d %H:%M'))
+    times = times.apply(lambda x: datetime.strftime(x, '%Y-%m-%d %H:%M:%S'))
+    aq_other.loc[:, 'utc_time'] = times
+
+    # new data
+    aq_new.drop(['id', 'CO_Concentration', 'O3_Concentration', 'SO2_Concentration'], axis=1, inplace=True)
+    aq_new.rename(columns={'station_id': 'stationId', 'time': 'utc_time', 'PM25_Concentration': 'PM2.5',
+                           'PM10_Concentration': 'PM10', 'NO2_Concentration': 'NO2'}, inplace=True)
+
+    df_temp = pd.concat([aq, aq_other, aq_new], ignore_index=True)
+    df_temp.sort_index(inplace=True)
+
+    # reorder columns to be the same with beijing data
+    df_temp = df_temp[['stationId', 'utc_time', 'PM2.5', 'PM10', 'NO2']]
+
+    return df_temp
+
+
+def _get_missing_time(missing_time):
+    missing_time_list = []
+    for time in missing_time:
+        ts = (time - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
+        date_time = datetime.utcfromtimestamp(ts)
+        missing_time_list.append(datetime.strftime(date_time, '%Y-%m-%d %H:%M:%S'))
+    return missing_time_list
+
+
+def _validate_results(city):
+    dir_path = post_paths[city + '_post']
+    if os.path.isdir(dir_path):
+        files = os.listdir(dir_path)
+
+    for file in files:
+        file_path = os.path.join(dir_path, file)
+        print('reading file from {}'.format(file_path))
+        # if len(file.split('_')) > 3: # features like wind_speed and wind_direction
+        #     feature_name = '_'.join(file.split('_')[1:3]) # extract "wind_speed" from "bj_wind_speed_filled"
+        # else:
+        #     feature_name = file.split('_')[1] # bj_PM2.5_filled will extract PM2.5
+
+        df_filled = pd.read_csv(file_path, index_col=0)
+        print('shape of {} is '.format(file), df_filled.shape)
+        print('number of missing values of {} is '.format(file), df_filled.loc[df_filled.isnull().any(axis=1), :].shape[0])
+
 
 def fill_missing_time_with_na(df):
     start_time = df.index.min()
@@ -138,7 +217,7 @@ def fill_missing_time_with_na(df):
     print('There should be {} date time in total'.format(len(all_times)))
     missing_time = np.setdiff1d(all_times.values, df.index.values.astype(np.datetime64))
     missing_time = _get_missing_time(missing_time)
-    
+
     # fill missing dates
     missing_df = pd.DataFrame(np.nan, index=missing_time, columns=df.columns)
     missing_df.index = missing_time
@@ -160,37 +239,11 @@ def fill_missing_single_data(df, stations):
     # convert to pandas data frame
     return pd.DataFrame(data_filled, index=df.index, columns=df.columns)
 
-# def fill_missing_grid_metero(df):
 
-
-# def normalization(df):
-#     return df.describe()
-
-#==============================================================
-# Private functions
-#==============================================================
-def _get_missing_time(missing_time):
-    missing_time_list = []
-    for time in missing_time:
-        ts = (time - np.datetime64('1970-01-01T00:00:00Z')) / np.timedelta64(1, 's')
-        date_time = datetime.utcfromtimestamp(ts)
-        missing_time_list.append(datetime.strftime(date_time, '%Y-%m-%d %H:%M:%S'))
-    return missing_time_list
-
-
-#==============================================================
+# ==============================================================
 # Main
-#==============================================================
+# ==============================================================
+
 if __name__ == '__main__':
     for city in ['bj','ld']:
-        city_aq = aq_city_preprocess(city)
-        print('Verify {} air quality data ...'.format(city))
-        for particle, data in city_aq.items():
-            print('shape of {}_{} is '.format(city, particle), data.shape)
-            print('number of missing values of {}_{} is '.format(city, particle), data.loc[data.isnull().any(axis=1), :].shape)
-        
-        print('Verify {} meterology data ...'.format(city))
-        city_meo = meter_preprocess(city)
-        for meo, data in city_meo.items():
-            print('shape of {}_{} is '.format(city, meo), data.shape)
-            print('number of missing values of {}_{} is '.format(city, meo), data.loc[data.isnull().any(axis=1), :].shape)
+        preprocess_main(city)

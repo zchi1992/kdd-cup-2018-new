@@ -11,9 +11,9 @@ if __name__ == '__main__':
     end_time = datetime_formatter(datetime.utcnow())
     request_main(start_time, end_time)
 
-    # data preprocess
+    # data preprocessing
     for city in cities:
-        aq_city_preprocess(city)
+        preprocess_main(city)
         # meter_preprocess(city)
 
 
