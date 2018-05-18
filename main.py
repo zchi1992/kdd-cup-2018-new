@@ -14,7 +14,6 @@ if __name__ == '__main__':
     # data preprocessing
     for city in cities:
         preprocess_main(city)
-        # meter_preprocess(city)
 
 
     # split data into training and testing

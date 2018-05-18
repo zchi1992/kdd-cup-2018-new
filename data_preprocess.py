@@ -7,7 +7,7 @@ import os
 
 post_paths = {
     'bj_post': './data/Beijing/post/',
-    'ld_post': './data/London/post'
+    'ld_post': './data/London/post/'
 }
 
 
@@ -16,8 +16,7 @@ def preprocess_main(city):
         aq_city_preprocess(city, bj_particles)
     else:
         aq_city_preprocess(city, ld_particles)
-
-    # meter_preprocess(city)
+    meter_preprocess(city)
 
     # validate results
     print('Validate results:\n')
@@ -62,7 +61,6 @@ def aq_city_preprocess(city, particles):
                 data = pd.concat([data, missing_df], axis=1)
                 data.sort_index(axis=1, inplace=True)
 
-        # filling missing data
         print('Filling missing data for {}\n'.format(particle))
 
         data_filled_hour = fill_missing_time_with_na(data)
@@ -86,22 +84,45 @@ def aq_city_preprocess(city, particles):
         else:
             data_filled_na.to_csv(post_paths['ld_post'] + '{}_{}_filled.csv'.format(city, particle))
 
-##########################################################################
+
 def meter_preprocess(city):
     print('start working on {} meterology '.format(city))
-    metero_stations = load_city_meter(city)
     stations = get_stations(city, grid=False, which='all')
-    # deduplication
-    # there's no duplication in the data
+    grids = get_stations(city, grid=True)
 
-    for metero, data in metero_stations.items():
+    stations_grids = find_nearest(stations, grids)
+
+    metero_hist, metero_new = load_city_meter_grid(city)
+
+    # process historical data
+    metero_hist.drop(['longitude', 'latitude'], axis=1, inplace=True)
+    metero_hist.rename(columns={'stationName': 'stationId', 'wind_speed/kph': 'wind_speed'}, inplace=True)
+
+    # process new data
+    metero_new.drop('id', axis=1, inplace=True)
+    metero_new.rename(columns={'time': 'utc_time', 'station_id': 'stationId'}, inplace=True)
+    metero_new.drop('weather', axis=1, inplace=True)  # TODO: Add weather later
+
+    df_temp = pd.concat([metero_hist, metero_new], ignore_index=True)
+
+    for metero in meteros:
+        data = df_temp.pivot_table(index='utc_time',
+                                    columns='stationId',
+                                    values=metero)
+        stations_metero = pd.DataFrame() # build meterological features
+        col_names = []
+        for station, nearest_grids in stations_grids.items():
+            stations_metero = pd.concat([stations_metero, data[nearest_grids[0]]], axis=1)
+            col_names.append(station + '_{}'.format(metero))
+        stations_metero.columns = col_names
+
         print('Fill missing data for {}'.format(metero))
 
         # fill missing dates
-        data_filled_time = fill_missing_time_with_na(data)
+        data_filled_time = fill_missing_time_with_na(stations_metero)
         missing_len = data_filled_time.loc[data_filled_time.isnull().any(axis=1), :].shape[0]
         print('There are {} missing in the data'.format(missing_len))
-        
+
         # if there's no missing value, skip filling process
         if missing_len == 0:
             print('There"s no missing value in the data')
@@ -109,18 +130,48 @@ def meter_preprocess(city):
 
         # fill missing values
         data_filled_na = fill_missing_single_data(data_filled_time, stations)
-        
+
         missing_still_len = data_filled_na.loc[data_filled_na.isnull().any(axis=1), :].shape[0]
         print('There are {} still missing in the data \n'.format(missing_still_len))
-        # deal with missing left
-        # don't do anything
-        metero_stations[metero] = data_filled_na
+
+        # for rest of missing data, we use forward fill
+        data_filled_na.fillna(method='ffill', inplace=True)
 
         if city == 'bj':
-            data_filled_na.to_csv(r'./Data/Beijing/{}_{}_filled.csv'.format(city, metero), index=True)
+            data_filled_na.to_csv(post_paths['bj_post'] + '{}_{}_filled.csv'.format(city, metero))
         else:
-            data_filled_na.to_csv(r'./Data/London/{}_{}_filled.csv'.format(city, metero), index=True)
-    return metero_stations
+            data_filled_na.to_csv(post_paths['ld_post'] + '{}_{}_filled.csv'.format(city, metero))
+
+    # # deduplication
+    # # there's no duplication in the data
+    #
+    # for metero, data in metero_stations.items():
+    #     print('Fill missing data for {}'.format(metero))
+    #
+    #     # fill missing dates
+    #     data_filled_time = fill_missing_time_with_na(data)
+    #     missing_len = data_filled_time.loc[data_filled_time.isnull().any(axis=1), :].shape[0]
+    #     print('There are {} missing in the data'.format(missing_len))
+    #
+    #     # if there's no missing value, skip filling process
+    #     if missing_len == 0:
+    #         print('There"s no missing value in the data')
+    #         continue
+    #
+    #     # fill missing values
+    #     data_filled_na = fill_missing_single_data(data_filled_time, stations)
+    #
+    #     missing_still_len = data_filled_na.loc[data_filled_na.isnull().any(axis=1), :].shape[0]
+    #     print('There are {} still missing in the data \n'.format(missing_still_len))
+    #     # deal with missing left
+    #     # don't do anything
+    #     metero_stations[metero] = data_filled_na
+    #
+    #     if city == 'bj':
+    #         data_filled_na.to_csv(r'./Data/Beijing/{}_{}_filled.csv'.format(city, metero), index=True)
+    #     else:
+    #         data_filled_na.to_csv(r'./Data/London/{}_{}_filled.csv'.format(city, metero), index=True)
+    # return metero_stations
 
 # ==============================================================
 # Private functions
