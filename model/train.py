@@ -71,8 +71,8 @@ def train_and_dev(path, city='bj', pre_days=5, gap=0, loss_function="L2", total_
     KEEP_RATE = 0.5
 
     output_features = []
-    for station in station_list : 
-        for aq_feature in y_aq_list :
+    for station in station_list:
+        for aq_feature in y_aq_list:
             output_features.append(station + "_" + aq_feature)
     output_features.sort()
 
@@ -91,8 +91,6 @@ def train_and_dev(path, city='bj', pre_days=5, gap=0, loss_function="L2", total_
                             lambda_l2_reg=lambda_l2_reg,
                             GRADIENT_CLIPPING=GRADIENT_CLIPPING,
                             loss_function=loss_function)
-
-
     # training process
     train_losses = []
     val_losses = []
@@ -115,9 +113,6 @@ def train_and_dev(path, city='bj', pre_days=5, gap=0, loss_function="L2", total_
                                                               pre_days=pre_days,
                                                               batch_size=batch_size,
                                                               gap=gap)
-
-
-            # print(batch_input.shape, batch_output.shape)
             feed_dict = {rnn_model['enc_inp'][t]: batch_input[:,t,:] for t in range(input_seq_len)}
             feed_dict.update({rnn_model['target_seq'][t]: batch_output[:,t,:] for t in range(output_seq_len)})
             _, loss_t = sess.run([rnn_model['train_op'], rnn_model['loss']], feed_dict) 
@@ -138,12 +133,12 @@ def train_and_dev(path, city='bj', pre_days=5, gap=0, loss_function="L2", total_
     print('Generating test data for the model to validate all models...')
     # Generate test data for the model
     dev_x, dev_y = generate_dev_set(city=city,
-                                      station_list=station_list,
-                                      X_aq_list=X_aq_list, 
-                                      y_aq_list=y_aq_list, 
-                                      X_meo_list=X_meo_list,
-                                      pre_days=pre_days,
-                                      gap=gap)
+                                  station_list=station_list,
+                                  X_aq_list=X_aq_list,
+                                  y_aq_list=y_aq_list,
+                                  X_meo_list=X_meo_list,
+                                  pre_days=pre_days,
+                                  gap=gap)
     # ??? What does this step do
     _, _, dev_y_original, _ = SMAPE_on_dataset_v1(dev_y, dev_y, output_features, statistics, 1, norm=norm)
 
@@ -166,7 +161,7 @@ def train_and_dev(path, city='bj', pre_days=5, gap=0, loss_function="L2", total_
     aver_smapes_best = 10
     model_preds_on_dev = None
 
-    for name in saved_iteractions :
+    for name in saved_iteractions:
 
         init = tf.global_variables_initializer()
         with tf.Session() as sess:

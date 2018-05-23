@@ -1,6 +1,7 @@
 import numpy as np
 import pandas as pd
 
+
 def symmetric_mean_absolute_percentage_error(actual, forecast, y_mean, y_std, norm=False):
     '''
     Compute the Symmetric mean absolute percentage error (SMAPE or sMAPE) on a single data of the dev set or test set.
@@ -13,6 +14,7 @@ def symmetric_mean_absolute_percentage_error(actual, forecast, y_mean, y_std, no
         y_std : std value used when doing preprocess.
         
     '''
+
     actual = np.squeeze(actual)
     forecast = np.squeeze(forecast)
 
