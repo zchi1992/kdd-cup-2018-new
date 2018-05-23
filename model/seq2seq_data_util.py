@@ -135,11 +135,14 @@ def get_training_statistics(city):
     '''
     Get statics values of aq and meo data.
     '''
-
-    aq_describe = pd.read_csv("./Data/data/{}_aq_desc.csv".format(city))
+    if city == 'bj':
+        city_full = 'Beijing'
+    else:
+        city_full = 'London'
+    aq_describe = pd.read_csv("./data/{}/{}_aq_desc.csv".format(city_full, city))
     aq_describe.set_index("Unnamed: 0", inplace=True)
     
-    meo_describe = pd.read_csv("./Data/data/{}_meo_desc.csv".format(city))
+    meo_describe = pd.read_csv("./data/{}/{}_meo_desc.csv".format(city_full, city))
     meo_describe.set_index("Unnamed: 0", inplace=True)  
     
     statistics = pd.concat([aq_describe, meo_describe], axis=1)
@@ -177,8 +180,12 @@ def generate_training_set(city="bj", station_list=None, X_aq_list=None, y_aq_lis
     X_meo_list = ["temperature","pressure","humidity","direction","speed/kph"]
     '''
 
-    aq_train = pd.read_csv("./Data/data/%s_train_aq.csv" %(city))
-    meo_train = pd.read_csv("./Data/data/%s_train_meo.csv" %(city))
+    if city == 'bj':
+        city_full = 'Beijing'
+    else:
+        city_full = 'London'
+    aq_train = pd.read_csv("./data/{}/{}_train_aq.csv".format(city_full, city))
+    meo_train = pd.read_csv("./data/{}/{}_train_meo.csv".format(city_full, city))
     # print("shape of aq and meo training data are : ", aq_train.shape, meo_train.shape)
     
     train_df = pd.concat([aq_train, meo_train], axis=1)
@@ -266,9 +273,12 @@ def generate_X_test_set(city="bj",
                         pre_days=5, 
                         gap=0) :
 
-
-    aq_dev = pd.read_csv("./Data/data/%s_test_aq.csv" %(city))
-    meo_dev = pd.read_csv("./Data/data/%s_test_meo.csv" %(city))
+    if city == 'bj':
+        city_full = 'Beijing'
+    else:
+        city_full = 'London'
+    aq_dev = pd.read_csv("./data/{}/{}_train_aq.csv".format(city_full, city))
+    meo_dev = pd.read_csv("./data/{}/{}_train_meo.csv".format(city_full, city))
     
     dev_df = pd.concat([aq_dev, meo_dev], axis=1)
 
@@ -333,8 +343,12 @@ def generate_dev_set(city="bj", station_list=None, X_aq_list=None, y_aq_list=Non
     X_meo_list = ["temperature","pressure","humidity","direction","speed/kph"]
 
     '''
-    aq_dev = pd.read_csv("./Data/data/%s_test_aq.csv" %(city))
-    meo_dev = pd.read_csv("./Data/data/%s_test_meo.csv" %(city))
+    if city == 'bj':
+        city_full = 'Beijing'
+    else:
+        city_full = 'London'
+    aq_dev = pd.read_csv("./data/{}/{}_train_aq.csv".format(city_full, city))
+    meo_dev = pd.read_csv("./data/{}/{}_train_meo.csv".format(city_full, city))
     
     dev_df = pd.concat([aq_dev, meo_dev], axis=1)
     

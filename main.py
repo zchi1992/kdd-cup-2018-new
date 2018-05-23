@@ -6,25 +6,26 @@ from model.train import train_and_dev
 import argparse
 
 parser = argparse.ArgumentParser()
-parser.parse_args()
 # set positional arguments for training
-parser.add_argument('--gap', type=int, default=0, help='gap coulbe 0, 12, 24, depending on when the program is running')
-args = parser.parse_args(args=[])
+parser.add_argument('--gap', type=int, default=0,
+                    help='gap could be 0, 12, 24, depending on when the program is running')
+args = parser.parse_args()
 gap = args.gap
 
 if __name__ == '__main__':
+
     cities = ['bj', 'ld']
     particles = ["PM2.5", "PM10", "NO2", "CO", "SO2", "O3"]
     meteros = ["temperature", "pressure", "humidity", "wind_direction", "wind_speed"]
 
     # request latest dataset
-    start_time = '2018-03-31-0'
-    end_time = datetime_formatter(datetime.utcnow())
-    request_main(start_time, end_time)
-
-    # data preprocessing
-    for city in cities:
-        preprocess_main(city)
+    # start_time = '2018-03-31-0'
+    # end_time = datetime_formatter(datetime.utcnow())
+    # request_main(start_time, end_time)
+    #
+    # # data preprocessing
+    # for city in cities:
+    #     preprocess_main(city)
 
     # load filled data
     data_aq_all = {}
@@ -37,21 +38,23 @@ if __name__ == '__main__':
             for file in files:
                 tmp = pd.read_csv(os.path.join(r'./data/Beijing/post', file), index_col=0)
                 if any([p in file for p in particles]):
-                    city_aq_all = pd.concat([city_aq_all, tmp], ignore_index=True)
+                    city_aq_all = pd.concat([city_aq_all, tmp], axis=1)
                 else:
-                    city_meter_all = pd.concat([city_meter_all, tmp], ignore_index=True)
+                    city_meter_all = pd.concat([city_meter_all, tmp], axis=1)
             assert any(city_aq_all.isnull().any(axis=1)) is False, 'There"s still missing data in {}_aq dataset'.format(city)
             assert any(city_meter_all.isnull().any(axis=1)) is False, 'There"s still missing data in {}_meter dataset'.format(city)
         else:
             files = os.listdir(r'./data/London/post')
             for file in files:
-                tmp = pd.read_csv(os.path.join(r'./data/Beijing/post', file), index_col=0)
+                tmp = pd.read_csv(os.path.join(r'./data/London/post', file), index_col=0)
                 if any([p in file for p in particles]):
-                    city_aq_all = pd.concat([city_aq_all, tmp], ignore_index=True)
+                    city_aq_all = pd.concat([city_aq_all, tmp], axis=1)
                 else:
-                    city_meter_all = pd.concat([city_meter_all, tmp], ignore_index=True)
+                    city_meter_all = pd.concat([city_meter_all, tmp], axis=1)
             assert any(city_aq_all.isnull().any(axis=1)) is False, 'There"s still missing data in {}_aq dataset'.format(city)
             assert any(city_meter_all.isnull().any(axis=1)) is False, 'There"s still missing data in {}_meter dataset'.format(city)
+        data_aq_all[city] = city_aq_all
+        data_metero_all[city] = city_meter_all
 
     # split data into training and testing
     train_start_time = '2017-01-02 00:00:00'
