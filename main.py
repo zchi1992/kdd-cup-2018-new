@@ -3,29 +3,32 @@ from preprocess.data_preprocess import *
 from datetime import datetime
 from utils.train_test_split import *
 from model.train import train_and_dev
-import argparse
 
-parser = argparse.ArgumentParser()
-# set positional arguments for training
-parser.add_argument('--gap', type=int, default=0,
-                    help='gap could be 0, 12, 24, depending on when the program is running')
-args = parser.parse_args()
-gap = args.gap
 
 if __name__ == '__main__':
-
     cities = ['bj', 'ld']
     particles = ["PM2.5", "PM10", "NO2", "CO", "SO2", "O3"]
     meteros = ["temperature", "pressure", "humidity", "wind_direction", "wind_speed"]
+    current_utc = datetime.utcnow()
+    date_time = datetime_formatter(current_utc)
+
+    # set gap
+    gap = 0
+    if (current_utc.hour >= 0) and (current_utc.hour < 9):
+        gap = 0
+    elif (current_utc.hour >= 8) and (current_utc.hour < 16):
+        gap = 12
+    else:
+        gap = 24
 
     # request latest dataset
-    # start_time = '2018-03-31-0'
-    # end_time = datetime_formatter(datetime.utcnow())
-    # request_main(start_time, end_time)
-    #
-    # # data preprocessing
-    # for city in cities:
-    #     preprocess_main(city)
+    start_time = '2018-03-31-0'
+    end_time = datetime_formatter(datetime.utcnow())
+    request_main(start_time, end_time)
+
+    # data preprocessing
+    for city in cities:
+        preprocess_main(city)
 
     # load filled data
     data_aq_all = {}
@@ -87,8 +90,7 @@ if __name__ == '__main__':
     for city in cities:
         results[city] = {}
         # make directories to store all trained models
-        datetime = datetime_formatter(datetime.utcnow())
-        path = './results/{datetime}/{city}/'.format(datetime=datetime, city=city)
+        path = './results/{datetime}/{city}/'.format(datetime=date_time, city=city)
         if not os.path.isdir(path):
             os.makedirs(path) # recursively create a directory to store all models
         print("city: {city}".format(city=city))
@@ -96,8 +98,8 @@ if __name__ == '__main__':
             path, city, pre_days, gap, loss_function, iterations)
         print("best_SAMPE: {:.5f}".format(aver_smapes_best))
         # write out model_preds_on_test and forecast_df
-        model_preds_on_test.save(path + 'model_preds_on_test')
-        forecast_df.save(path + 'forecast_df')
+        np.save(path + 'model_preds_on_test', model_preds_on_test)
+        forecast_df.to_csv(path + 'forecast_df', index=False)
         results[city] = forecast_df
 
     bj_forecast = results['bj']
@@ -123,19 +125,18 @@ if __name__ == '__main__':
 
     # rename stations
     for index in bj_forecast.index:
-        station, time = bj_forecast.at[index, 'station'].split('#') # aotizhongxin_aq#0 to aotizhongxin_aq, 0
+        station, time = bj_forecast.at[index, 'stations'].split('#') # aotizhongxin_aq#0 to aotizhongxin_aq, 0
         if station in station_need_rename.keys():
-            bj_forecast.at[index, 'station'] = station_need_rename[station] + '#' + time
-    bj_forecast.rename(columns={'station': 'test_id'}, inplace=True)
+            bj_forecast.at[index, 'stations'] = station_need_rename[station] + '#' + time
+    bj_forecast.rename(columns={'stations': 'test_id'}, inplace=True)
     bj_forecast = bj_forecast[['test_id', 'PM2.5', 'PM10', 'O3']]
     print('Finish post processing beijing forecast')
 
     ld_forecast['O3'] = 0
-    ld_forecast.rename(columns={'station': 'test_id'}, inplace=True)
+    ld_forecast.rename(columns={'stations': 'test_id'}, inplace=True)
     ld_forecast = ld_forecast[['test_id', 'PM2.5', 'PM10', 'O3']]
     print('Finish post processing london forecast')
 
     submission_new = pd.concat([bj_forecast, ld_forecast], axis=0)
-    datetime = datetime_formatter(datetime.utcnow())
-    submission_new.to_csv(r'./submit/submission_{datetime}'.format(datetime=datetime), index=False)
+    submission_new.to_csv(r'./submit/submission_{datetime}.csv'.format(datetime=date_time), index=False)
     print('Done!')

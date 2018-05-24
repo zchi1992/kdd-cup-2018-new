@@ -13,7 +13,7 @@ url_templates = {
 }
 
 save_paths = {
-    'bj_aq': r'./data//Beijing/aq/bj_aq_new.csv',
+    'bj_aq': r'./data/Beijing/aq/bj_aq_new.csv',
     'bj_meteorology_grid': r'./data/Beijing/meo/bj_meo_grid_new.csv',
     'ld_aq': r'./data/London/aq/ld_aq_new.csv',
     'ld_meteorology_grid': r'./data/London/meo/ld_meo_grid_new.csv'
